@@ -1,11 +1,11 @@
-[#]: collector: (选题人 Licae)
-[#]: translator: ( )
-[#]: reviewer: ( )
-[#]: publisher: ( )
-[#]: subject: (BleedingTooth: Linux Bluetooth Zero-Click Remote Code Execution)
-[#]: via: (https://google.github.io/security-research/pocs/linux/bleedingtooth/writeup.html#bypassing-badkarma)
-[#]: author: (Andy Nguyen https://google.github.io/security-research)
-[#]: url: ( )
+[#]: collector: "选题人 Licae"
+[#]: translator: "b1lack "
+[#]: reviewer: " "
+[#]: publisher: " "
+[#]: subject: "BleedingTooth: Linux Bluetooth Zero-Click Remote Code Execution"
+[#]: via: "https://google.github.io/security-research/pocs/linux/bleedingtooth/writeup.html#bypassing-badkarma"
+[#]: author: "Andy Nguyen https://google.github.io/security-research"
+[#]: url: " "
 
 BleedingTooth: Linux Bluetooth Zero-Click Remote Code Execution
 =======
