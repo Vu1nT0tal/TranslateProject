@@ -24,6 +24,13 @@ VulnTotal 团队的翻译组，负责从国外优秀媒体翻译 安全/计算�
 - 2022 -《Ghidra权威指南》- 杨超
 - ...
 
+## 开源图书
+
+开源图书同样也可以获得积分，新加入的志愿者建议先从《IDA Pro每周小技巧》开始。
+
+- 2022 -[《IDA Pro每周小技巧》](https://github.com/VulnTotal-Team/IDA-Pro-tips)
+- ...
+
 ## 组织架构
 
 管理：
