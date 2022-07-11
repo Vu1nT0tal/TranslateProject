@@ -1,29 +1,22 @@
-[#]: collector: "选题人 Licae"
-[#]: translator: "b1lack "
-[#]: reviewer: " "
-[#]: publisher: " "
-[#]: subject: "BleedingTooth: Linux Bluetooth Zero-Click Remote Code Execution"
-[#]: via: "https://google.github.io/security-research/pocs/linux/bleedingtooth/writeup.html#bypassing-badkarma"
-[#]: author: "Andy Nguyen https://google.github.io/security-research"
-[#]: url: " "
-
 BleedingTooth：Linux 蓝牙零点击远程代码执行
 =======
 
 # 概述
 
-我注意到网络子系统通过 syzkaller(Google开发的一款内核模糊测试工具) 进行了广泛的模糊测试，但是像蓝牙这样的子系统涉及的比较少。总的来说，关于蓝牙主机攻击的研究似乎相当有限-蓝牙中大多数公开的漏洞只影响[固件](https://www.armis.com/research/bleedingbit/)或自身[规范](https://knobattack.com/)，并且只允许攻击者窃听和/或操纵信息。
+我注意到网络子系统通过 syzkaller（Google开发的一款内核模糊测试工具）进行了广泛的模糊测试，但是像蓝牙这样的子系统涉及的比较少。总的来说，关于蓝牙主机攻击的研究似乎相当有限-蓝牙中大多数公开的漏洞只影响固件<sup>[1]</sup>或自身规范<sup>[2]</sup>，并且只允许攻击者窃听和/或操纵信息。
 
-但如果攻击者能够完全控制设备呢？最突出的例子是 [BlueBorne ](https://www.armis.com/blueborne/)和 [BlueFrag ](https://insinuator.net/2020/04/cve-2020-0022-an-android-8-0-9-0-bluetooth-zero-click-rce-bluefrag/)。我给自己设定的目标是研究 Linux 的蓝牙堆栈，扩展 BlueBorne 的发现，并扩展 syzkaller，使其能够模糊测试 /dev/vhci 设备。
+但如果攻击者能够完全控制设备呢？最突出的例子是 BlueBorne<sup>[3]</sup>和 BlueFrag<sup>[4]</sup>。我给自己设定的目标是研究 Linux 的蓝牙堆栈，扩展 BlueBorne 的发现，并扩展 syzkaller，使其能够模糊测试 /dev/vhci 设备。
 
-这篇博文描述了我深入研究代码的过程，发现了高危的漏洞，并最终将它们链接到针对 x86-64 Ubuntu 20.04.1（[视频](https://youtu.be/qPYrLRausSw)）的成熟RCE漏洞利用中。
+这篇博文描述了我深入研究代码的过程，发现了高危的漏洞，并最终将它们链接到针对 x86-64 Ubuntu 20.04.1（视频<sup>[5]</sup>）的成熟 RCE 漏洞利用中。
+
+
 
 ## 补丁，严重性和公告
 
-谷歌直接联系了 [BlueZ](http://www.bluez.org/) 和 Linux 蓝牙子系统维护者（Intel），而不是 Linux 内核安全团队，以协调对这一系列漏洞的多方响应。Intel 随补丁一起发布了安全公告 [INTEL-SA-00435](https://www.intel.com/content/www/us/en/security-center/advisory/intel-sa-00435.html)，但在披露时，这些补丁并未包含在任何已发布的内核版本中。为了便于协调，应该通知 Linux 内核安全团队，并且任何此类将来的漏洞也将报告给他们。通信的时间表位于文章的结尾。相应漏洞的补丁包括：
+谷歌直接联系了 BlueZ<sup>[6]</sup> 和 Linux 蓝牙子系统维护者（Intel），而不是 Linux 内核安全团队，以协调对这一系列漏洞的多方响应。Intel 随补丁一起发布了安全公告 INTEL-SA-00435<sup>[7]</sup>，但在披露时，这些补丁并未包含在任何已发布的内核版本中。为了便于协调，应该通知 Linux 内核安全团队，并且任何此类将来的漏洞也将报告给他们。通信的时间表位于文章的结尾。相应漏洞的补丁包括：
 
-- [BadVibes](https://github.com/google/security-research/security/advisories/GHSA-ccx2-w2r4-x649) （CVE-2020-24490） 已于 2020 年 7 月 30 日在主线分支上修复：[提交](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=a2ec905d1e160a33b2e210e45ad30445ef26ce0e)。
-- [BadChoice](https://github.com/google/security-research/security/advisories/GHSA-7mh3-gq28-gfrq) （CVE-2020-12352） 和 [BadKarma](https://github.com/google/security-research/security/advisories/GHSA-h637-c88j-47wq) （CVE-2020-12351） 已于 2020-Sep-25 在 bluetooth-next 上修复：提交 [1](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=eddb7732119d53400f48a02536a84c509692faa8)、[2](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=f19425641cb2572a33cb074d5e30283720bd4d22)、[3](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=b176dd0ef6afcb3bca24f41d78b0d0b731ec2d08)、[4](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=b560a208cda0297fef6ff85bbfd58a8f0a52a543)
+- BadVibes<sup>[8]</sup>（CVE-2020-24490） 已于 2020 年 7 月 30 日在主线分支上修复：提交<sup>[8]</sup>。
+- BadChoice<sup>[9]</sup>（CVE-2020-12352） 和 BadKarma<sup>[10]</sup> （CVE-2020-12351） 已于 2020-Sep-25 在 bluetooth-next 上修复：提交 1<sup>[11]</sup>、2<sup>[12]</sup>、3<sup>[13]</sup>、4<sup>[14]</sup>
 
 仅这些漏洞的严重性就有从中到高不等，但它们的组合起来使用意味着严重的安全风险。这篇文章涵盖了这些风险。
 
@@ -998,8 +991,8 @@ sk->sk_filter->prog->bpf_func(skb, sk->sk_filter->prog->insnsi);
 
 要提取 gadgets ，我们可以使用以下工具:
 
-- [extract-vmlinux](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/scripts/extract-vmlinux) 解压 `./boot/vmlinuz`
-- [ROPgadget](https://github.com/JonathanSalwan/ROPgadget) 从 `vmlinux` 提取 ROP gadgets。
+- extract-vmlinux<sup>[15]</sup> 解压 `./boot/vmlinuz`
+- ROPgadget<sup>[16]</sup>从 `vmlinux` 提取 ROP gadgets。
 
 寻找像 `mov rsp, X ; ret` 这样的 gadgets，我们可以看到，它们没有一个是有用的。
 
@@ -1050,7 +1043,7 @@ static void build_payload(uint8_t data[0x400]) {
 
 ### 内核ROP链执行
 
-现在，我们可以编写一个大的 ROP 链来检索和执行 C 负载，也可以编写一个小的 ROP 链来运行任意命令。为了进行 POC 证明，我们已经满足于使用反向 shell 的条件,因此执行一个命令就足够了。受 [CVE-2019-18683: Exploiting a Linux kernel vulnerability in the V4L2 subsystem](https://a13xp0p0v.github.io/2020/02/15/CVE-2019-18683.html) （利用 Linux 中的 V4L2 子系统内核漏洞）中描述的ROP链的启发我们将构建一个链，用 `/bin/bash -c /bin/bash`之后，蓝牙将不再工作。在更复杂的攻击中，我们将继续执行。
+现在，我们可以编写一个大的 ROP 链来检索和执行 C 负载，也可以编写一个小的 ROP 链来运行任意命令。为了进行 POC 证明，我们已经满足于使用反向 shell 的条件,因此执行一个命令就足够了。受 CVE-2019-18683: Exploiting a Linux kernel vulnerability in the V4L2 subsystem<sup>[17]</sup>（利用 Linux 中的 V4L2 子系统内核漏洞）中描述的ROP链的启发我们将构建一个链，用 `/bin/bash -c /bin/bash`之后，蓝牙将不再工作。在更复杂的攻击中，我们将继续执行。
 
 为了确定两种方法的偏移量，我们可以简单地检查受害者机器上留存的符号:
 
@@ -1135,7 +1128,7 @@ gnome-calculator
 
 2010-07-22 - Linus Torvalds 报告独立发现 BlueZ 的 BadVibes 漏洞，公布时间为7天
 
-2020-07-24 - [BlueZ 主要开发人员](http://www.bluez.org/development/credits/)（Intel）报告的三个 BleedingTooth 漏洞的技术细节
+2020-07-24 - BlueZ 主要开发人员<sup>[18]</sup>（Intel）报告的三个 BleedingTooth 漏洞的技术细节
 
 2020-07-29 - Intel 在 2020-07-31 与谷歌预约了会议
 
@@ -1145,9 +1138,9 @@ gnome-calculator
 
 2020-08-12 - Intel 调整披露日期至 2020-10-13 (自初始报告起90天)
 
-2020-09-25 - Intel 提交补丁到 公开的 [bluetooth-next](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/net/bluetooth?id=f19425641cb2572a33cb074d5e30283720bd4d22) 分支 
+2020-09-25 - Intel 提交补丁到 公开的 bluetooth-next<sup>[19]</sup> 分支 
 
-2020-09-29 - 补丁与 [5.10 linux-next](https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/net/bluetooth?id=2bd056f550808eaa2c34a14169c99f81ead083a7) 分支合并
+2020-09-29 - 补丁与 5.10 linux-next<sup>[20]</sup>分支合并
 
 2020-10-13 - 公开披露英特尔的建议，随后披露谷歌建议
 
@@ -1157,7 +1150,7 @@ gnome-calculator
 
 # 结论
 
-从零知识开始，到发现蓝牙 HCI 协议中的三个漏洞，这是一个即奇怪又出乎意料的过程。当我第一次发现 BadVibes 漏洞时，我认为它只会被脆弱/恶意的蓝牙芯片触发，因为这个漏洞看起来太明显了。由于我没有两个带蓝牙 5 的可编程设备，我无法验证是否有可能收到这么大的报文。只有在比较了 Linux 蓝牙栈与其他实现并阅读了规范之后，我才得出结论，我确实是发现了我的第一个 RCE 漏洞，并立即出去购买了另一台笔记本电脑(令人惊讶的是，市场上没有值得信赖的 BT5 适配器)。分析溢出后，很快就发现需要一个额外的信息泄漏漏洞。比我想象的要快得多，我只花了两天时间就发现了 BadChoice 。在尝试触发它时，我发现了 BadKarma 漏洞，我最初认为这是一个会阻止 BadChoice 漏洞的 bug。事实证明，绕过这个漏洞是相当容易的，而且这个漏洞实际上是另一个高度严重的安全漏洞。研究 Linux 蓝牙栈和开发 RCE 漏洞具有挑战性，但令人兴奋，特别是因为这是我第一次审计和调试 Linux 内核。我很高兴，这项工作的结果是，决定在[默认情况下禁用蓝牙高速特性](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/net/bluetooth?id=b176dd0ef6afcb3bca24f41d78b0d0b731ec2d08)下以减少攻击面，这也意味着删除强大的堆原语。此外，我将从这项研究中获得的知识转化为 [syzkaller contributions](https://github.com/google/syzkaller/commits?author=TheOfficialFloW)，它使 /dev/vhci 设备能被Fuzz ，并发现了>40个额外的bug。虽然这些 bug 多数不太可能被利用，甚至不太可能被远程触发，但它们会被工程师识别和修复其他弱点（[Bluetooth: Fix null pointer dereference in hci_event_packet()](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=b50dc237ac04d499ad4f3a92632470a9eb844f7d), [Bluetooth: Fix memory leak in read_adv_mon_features()](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=cafd472a10ff3bccd8afd25a69f20a491cd8d7b8) 或 [Bluetooth: Fix slab-out-of-bounds read in hci_extended_inquiry_result_evt()](https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=51c19bf3d5cfaa66571e4b88ba2a6f6295311101)，因此有助于拥有一个更安全、更稳定的内核。
+从零知识开始，到发现蓝牙 HCI 协议中的三个漏洞，这是一个即奇怪又出乎意料的过程。当我第一次发现 BadVibes 漏洞时，我认为它只会被脆弱/恶意的蓝牙芯片触发，因为这个漏洞看起来太明显了。由于我没有两个带蓝牙 5 的可编程设备，我无法验证是否有可能收到这么大的报文。只有在比较了 Linux 蓝牙栈与其他实现并阅读了规范之后，我才得出结论，我确实是发现了我的第一个 RCE 漏洞，并立即出去购买了另一台笔记本电脑(令人惊讶的是，市场上没有值得信赖的 BT5 适配器)。分析溢出后，很快就发现需要一个额外的信息泄漏漏洞。比我想象的要快得多，我只花了两天时间就发现了 BadChoice 。在尝试触发它时，我发现了 BadKarma 漏洞，我最初认为这是一个会阻止 BadChoice 漏洞的 bug。事实证明，绕过这个漏洞是相当容易的，而且这个漏洞实际上是另一个高度严重的安全漏洞。研究 Linux 蓝牙栈和开发 RCE 漏洞具有挑战性，但令人兴奋，特别是因为这是我第一次审计和调试 Linux 内核。我很高兴，这项工作的结果是，决定在默认情况下禁用蓝牙高速特性<sup>[21]</sup>下以减少攻击面，这也意味着删除强大的堆原语。此外，我将从这项研究中获得的知识转化为 syzkaller contributions<sup>[22]</sup>，它使 /dev/vhci 设备能被Fuzz ，并发现了>40个额外的bug。虽然这些 bug 多数不太可能被利用，甚至不太可能被远程触发，但它们会被工程师识别和修复其他弱点（Bluetooth: Fix null pointer dereference in hci_event_packet()<sup>[23]</sup>, Bluetooth: Fix memory leak in read_adv_mon_features()<sup>[24]</sup>或 Bluetooth: Fix slab-out-of-bounds read in hci_extended_inquiry_result_evt()<sup>[25]</sup>)，因此有助于拥有一个更安全、更稳定的内核。
 
 # 致谢
 
@@ -1165,3 +1158,46 @@ Dirk Göhmann
 Eduardo Vela
 Francis Perron
 Jann Horn
+
+
+
+--------------
+
+via：https://google.github.io/security-research/pocs/linux/bleedingtooth/writeup.html#bypassing-badkarma
+
+作者：Andy Nguyen
+
+选题：Licae
+
+译者：b1lack 
+
+校对：
+
+作者链接：https://google.github.io/security-research 
+
+固件<sup>[1]</sup>：https://www.armis.com/research/bleedingbit/
+规范<sup>[2]</sup>：https://knobattack.com/
+BlueBorne<sup>[3]</sup>：https://www.armis.com/blueborne/
+BlueFrag：https://insinuator.net/2020/04/cve-2020-0022-an-android-8-0-9-0-bluetooth-zero-click-rce-bluefrag/
+视频<sup>[4]</sup>：https://youtu.be/qPYrLRausSw
+BlueZ<sup>[5]</sup>：http://www.bluez.org/
+INTEL-SA-00435<sup>[6]</sup>：https://www.intel.com/content/www/us/en/security-center/advisory/intel-sa-00435.html
+BadVibes<sup>[7]</sup>：https://github.com/google/security-research/security/advisories/GHSA-ccx2-w2r4-x649
+提交<sup>[8]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=a2ec905d1e160a33b2e210e45ad30445ef26ce0e
+BadChoice<sup>[9]</sup>：htts://github.com/google/security-research/security/advisories/GHSA-7mh3-gq28-gfrq
+BadKarma<sup>[10]</sup>：https://github.com/google/security-research/security/advisories/GHSA-h637-c88j-47wq
+1<sup>[11]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=eddb7732119d53400f48a02536a84c509692faa8
+2<sup>[12]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=f19425641cb2572a33cb074d5e30283720bd4d22
+3<sup>[13]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=b176dd0ef6afcb3bca24f41d78b0d0b731ec2d08
+4<sup>[14]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=b560a208cda0297fef6ff85bbfd58a8f0a52a543
+extract-vmlinux<sup>[15]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/scripts/extract-vmlinux
+ROPgadget<sup>[16]</sup>：https://github.com/JonathanSalwan/ROPgadget
+CVE-2019-18683: Exploiting a Linux kernel vulnerability in the V4L2 subsystem<sup>[17]</sup>：https://a13xp0p0v.github.io/2020/02/15/CVE-2019-18683.html
+BlueZ 主要开发人员<sup>[18]</sup>：http://www.bluez.org/development/credits/
+bluetooth-next<sup>[19]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/net/bluetooth?id=f19425641cb2572a33cb074d5e30283720bd4d22
+5.10 linux-next<sup>[20]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/net/bluetooth?id=2bd056f550808eaa2c34a14169c99f81ead083a7
+默认情况下禁用蓝牙高速特性<sup>[21]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/net/bluetooth?id=b176dd0ef6afcb3bca24f41d78b0d0b731ec2d08
+syzkaller contributions<sup>[22]</sup>：https://github.com/google/syzkaller/commits?author=TheOfficialFloW
+Bluetooth: Fix null pointer dereference in hci_event_packet()<sup>[23]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=b50dc237ac04d499ad4f3a92632470a9eb844f7d
+Bluetooth: Fix memory leak in read_adv_mon_features()<sup>[24]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=cafd472a10ff3bccd8afd25a69f20a491cd8d7b8
+Bluetooth: Fix slab-out-of-bounds read in hci_extended_inquiry_result_evt()<sup>[25]</sup>：https://git.kernel.org/pub/scm/linux/kernel/git/bluetooth/bluetooth-next.git/commit/?id=51c19bf3d5cfaa66571e4b88ba2a6f6295311101
