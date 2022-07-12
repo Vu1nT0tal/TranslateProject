@@ -1,11 +1,11 @@
-[#]: collector: (选题人 Licae)
-[#]: translator: ( )
-[#]: reviewer: ( )
-[#]: publisher: ( )
+[#]: collector: "选题人 Licae"
+[#]: translator: " b1lack"
+[#]: reviewer: " "
+[#]: publisher: " "
 [#]: subject: (PWN2OWN AUSTIN 2021 : DEFEATING THE NETGEAR R6700V3
-[#]: via: (https://www.synacktiv.com/en/publications/pwn2own-austin-2021-defeating-the-netgear-r6700v3.html)
-[#]: author: (Kevin Denis , Antide Petit https://www.synacktiv.com/en/publications/)
-[#]: url: ( )
+[#]: via: "https://www.synacktiv.com/en/publications/pwn2own-austin-2021-defeating-the-netgear-r6700v3.html"
+[#]: author: "Kevin Denis , Antide Petit https://www.synacktiv.com/en/publications/"
+[#]: url: " "
 PWN2OWN AUSTIN 2021 : DEFEATING THE NETGEAR R6700V3
 =======
 Twice a year ZDI organizes a competition where the goal is to hack hardware and software. During November 2021, in Austin, hackers tried to exploit hardware devices such as printers, routers, phones, home automation devices, NAS and more. This blogpost describes how we successfully took over a Netgear router from the WAN interface.
