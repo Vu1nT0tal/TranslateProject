@@ -1,4 +1,4 @@
-[#]: subject: PWN2OWN AUSTIN 2021 : DEFEATING THE NETGEAR R6700V3
+[#]: subject: "PWN2OWN AUSTIN 2021 : DEFEATING THE NETGEAR R6700V3"
 [#]: via: "https://www.synacktiv.com/en/publications/pwn2own-austin-2021-defeating-the-netgear-r6700v3.html"
 [#]: author: "Kevin Denis, Antide Petit"
 [#]: collector: "Licae"
