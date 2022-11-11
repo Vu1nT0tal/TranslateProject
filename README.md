@@ -1,6 +1,6 @@
 # 开源翻译项目
 
-VulnTotal 团队的翻译组，负责从国外优秀媒体翻译 安全/计算机 相关的技术、资讯、论文等内容。
+VulnTotal 翻译组负责从国外优秀媒体翻译 安全/计算机 相关的技术、资讯、论文等内容。
 
 欢迎更多的志愿者加入我们。
 
@@ -47,7 +47,7 @@ VulnTotal 团队的翻译组，负责从国外优秀媒体翻译 安全/计算�
 
 ## 关注我们
 
-[VulnTotal安全团队](https://github.com/VulnTotal-Team)成立于2022年。致力于分享高质量原创文章和开源工具，包括Web安全、移动安全、物联网/汽车安全、代码审计、网络攻防等，欢迎[关注或加入我们](https://github.com/VulnTotal-Team/.github/blob/main/README.md)！
+[VulnTotal安全](https://github.com/VulnTotal-Team)致力于分享高质量原创文章和开源工具，包括物联网/汽车安全、移动安全、网络攻防等。
 
 Apache-2.0 license
 
